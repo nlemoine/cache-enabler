@@ -1,0 +1,12 @@
+{
+    "name": "keycdn/cache-enabler",
+    "description": "A lightweight caching plugin for WordPress that makes your website faster by generating static HTML files plus WebP support.",
+    "type": "wordpress-plugin",
+    "license": "GPLv2",
+    "authors": [
+        {
+            "name": "Key CDN"
+        }
+    ],
+    "require": {}
+}

@@ -20,11 +20,13 @@ final class Cache_Enabler_Disk {
      * @var     string
      */
 
-    const FILE_GLOB      = '*index*';
-    const FILE_HTML      = 'index.html';
-    const FILE_GZIP      = 'index.html.gz';
-    const FILE_WEBP_HTML = 'index-webp.html';
-    const FILE_WEBP_GZIP = 'index-webp.html.gz';
+    const FILE_GLOB        = '*index*';
+    const FILE_HTML        = 'index.html';
+    const FILE_GZIP        = 'index.html.gz';
+    const FILE_BROTLI      = 'index.html.br';
+    const FILE_WEBP_HTML   = 'index-webp.html';
+    const FILE_WEBP_GZIP   = 'index-webp.html.gz';
+    const FILE_WEBP_BROTLI = 'index-webp.html.gr';
 
 
     /**
@@ -179,7 +181,11 @@ final class Cache_Enabler_Disk {
 
         // check webp and deliver gzip webp file if support
         if ( $http_accept && ( strpos( $http_accept, 'webp' ) !== false ) ) {
-            if ( is_readable( self::_file_webp_gzip() ) ) {
+            if ( strpos( $http_accept_encoding, 'br' ) !== false && is_readable( self::_file_webp_brotli() ) ) {
+                header( 'Content-Encoding: br' );
+                readfile( self::_file_webp_brotli() );
+                exit;
+            } elseif ( strpos( $http_accept_encoding, 'gzip' ) !== false && is_readable( self::_file_webp_gzip() ) ) {
                 header( 'Content-Encoding: gzip' );
                 readfile( self::_file_webp_gzip() );
                 exit;
@@ -187,6 +193,13 @@ final class Cache_Enabler_Disk {
                 readfile( self::_file_webp_html() );
                 exit;
             }
+        }
+
+        // check encoding and deliver gzip file if support
+        if ( $http_accept_encoding && ( strpos( $http_accept_encoding, 'br' ) !== false ) && is_readable( self::_file_brotli() )  ) {
+            header( 'Content-Encoding: br' );
+            readfile( self::_file_brotli() );
+            exit;
         }
 
         // check encoding and deliver gzip file if support
@@ -249,9 +262,12 @@ final class Cache_Enabler_Disk {
         // create files
         self::_create_file( self::_file_html(), $data . $cache_signature . ' (' . self::_file_scheme() . ' html) -->' );
 
-        // create pre-compressed file
+        // create pre-compressed files
         if ( $settings['compress_cache_with_gzip'] ) {
-            self::_create_file( self::_file_gzip(), gzencode( $data . $cache_signature . ' (' . self::_file_scheme() . ' gzip) -->', 9) );
+            self::_create_file( self::_file_gzip(), gzencode( $data . $cache_signature . ' (' . self::_file_scheme() . ' gzip) -->', 9 ) );
+        }
+        if ( $settings['compress_cache_with_brotli'] && function_exists('brotli_compress') ) {
+            self::_create_file( self::_file_brotli(), brotli_compress( $data . $cache_signature . ' (' . self::_file_scheme() . ' brotli) -->' ) );
         }
 
         // create WebP supported files
@@ -486,6 +502,20 @@ final class Cache_Enabler_Disk {
         return self::_file_path() . self::_file_scheme() . '-' . self::FILE_GZIP;
     }
 
+    /**
+     * get brotli file path
+     *
+     * @since   1.0.1
+     * @change  1.4.0
+     *
+     * @return  string  path to the brotli HTML file
+     */
+
+    private static function _file_brotli() {
+
+        return self::_file_path() . self::_file_scheme() . '-' . self::FILE_BROTLI;
+    }
+
 
     /**
      * get webp file path
@@ -514,6 +544,20 @@ final class Cache_Enabler_Disk {
     private static function _file_webp_gzip() {
 
         return self::_file_path() . self::_file_scheme() . '-' . self::FILE_WEBP_GZIP;
+    }
+
+    /**
+     * get brotli webp file path
+     *
+     * @since   1.0.1
+     * @change  1.4.0
+     *
+     * @return  string  path to the webp brotli HTML file
+     */
+
+    private static function _file_webp_brotli() {
+
+        return self::_file_path() . self::_file_scheme() . '-' . self::FILE_WEBP_BROTLI;
     }
 
 

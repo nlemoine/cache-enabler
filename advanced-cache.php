@@ -18,10 +18,12 @@ $path = _file_path();
 $scheme = ( ( isset( $_SERVER['HTTPS'] ) && $_SERVER['HTTPS'] !== 'off' ) || $_SERVER['SERVER_PORT'] == '443' ) ? 'https' : 'http';
 
 // path to cached variants
-$path_html      = $path . $scheme . '-index.html';
-$path_gzip      = $path . $scheme . '-index.html.gz';
-$path_webp_html = $path . $scheme . '-index-webp.html';
-$path_webp_gzip = $path . $scheme . '-index-webp.html.gz';
+$path_html        = $path . $scheme . '-index.html';
+$path_gzip        = $path . $scheme . '-index.html.gz';
+$path_brotli      = $path . $scheme . '-index.html.br';
+$path_webp_html   = $path . $scheme . '-index-webp.html';
+$path_webp_gzip   = $path . $scheme . '-index-webp.html.gz';
+$path_webp_brotli = $path . $scheme . '-index-webp.html.br';
 
 // check if cached file exists
 if ( ! is_readable( $path_html ) ) {
@@ -114,15 +116,30 @@ if ( $http_if_modified_since && ( strtotime( $http_if_modified_since ) >= filemt
 header( 'Last-Modified: ' . gmdate( 'D, d M Y H:i:s', filemtime( $path_html ) ) . ' GMT' );
 
 // check webp and deliver gzip webp file if supported
-if ( $http_accept && ( strpos( $http_accept, 'webp' ) !== false ) ) {
-    if ( is_readable( $path_webp_gzip ) ) {
+if ( ! empty( $settings['convert_image_urls_to_webp'] ) && $http_accept && ( strpos( $http_accept, 'webp' ) !== false ) ) {
+    if ( strpos( $http_accept_encoding, 'br' ) !== false && is_readable( $path_webp_brotli ) ) {
+        header( 'Content-Encoding: br' );
+        readfile( $path_webp_brotli );
+        exit;
+    }
+
+    if ( strpos( $http_accept_encoding, 'gzip' ) !== false && is_readable( $path_webp_gzip ) ) {
         header( 'Content-Encoding: gzip' );
         readfile( $path_webp_gzip );
         exit;
-    } elseif ( is_readable( $path_webp_html ) ) {
+    }
+
+    if ( is_readable( $path_webp_html ) ) {
         readfile( $path_webp_html );
         exit;
     }
+}
+
+// check encoding and deliver brotli file if supported
+if ( $http_accept_encoding && ( strpos($http_accept_encoding, 'br') !== false ) && is_readable( $path_brotli )  ) {
+    header( 'Content-Encoding: br' );
+    readfile( $path_brotli );
+    exit;
 }
 
 // check encoding and deliver gzip file if supported

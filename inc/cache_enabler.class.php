@@ -584,6 +584,7 @@ final class Cache_Enabler {
             'clear_complete_cache_on_new_comment'    => 0,
             'clear_complete_cache_on_changed_plugin' => 0,
             'compress_cache_with_gzip'               => 0,
+            'compress_cache_with_brotli'             => 1,
             'convert_image_urls_to_webp'             => 0,
             'excluded_post_ids'                      => '',
             'excluded_page_paths'                    => '',
@@ -2034,6 +2035,7 @@ final class Cache_Enabler {
             'clear_complete_cache_on_new_comment'    => (int) ( ! empty( $data['clear_complete_cache_on_new_comment'] ) ),
             'clear_complete_cache_on_changed_plugin' => (int) ( ! empty( $data['clear_complete_cache_on_changed_plugin'] ) ),
             'compress_cache_with_gzip'               => (int) ( ! empty( $data['compress_cache_with_gzip'] ) ),
+            'compress_cache_with_brotli'             => (int) ( ! empty( $data['compress_cache_with_brotli'] ) ),
             'convert_image_urls_to_webp'             => (int) ( ! empty( $data['convert_image_urls_to_webp'] ) ),
             'excluded_post_ids'                      => (string) sanitize_text_field( @$data['excluded_post_ids'] ),
             'excluded_page_paths'                    => (string) self::validate_regex( @$data['excluded_page_paths'] ),
@@ -2151,7 +2153,14 @@ final class Cache_Enabler {
                                 <p class="subheading"><?php esc_html_e( 'Variants', 'cache-enabler' ); ?></p>
                                 <label for="compress_cache_with_gzip">
                                     <input name="cache-enabler[compress_cache_with_gzip]" type="checkbox" id="compress_cache_with_gzip" value="1" <?php checked( '1', $settings['compress_cache_with_gzip'] ); ?> />
-                                    <?php esc_html_e( 'Pre-compression of cached pages. Needs to be disabled if the decoding fails in the web browser.', 'cache-enabler' ); ?>
+                                    <?php esc_html_e( 'Pre-compression of cached pages. Needs to be disabled if the decoding fails in the web browser.', 'cache-enabler' ); ?> (Gzip)
+                                </label>
+
+                                <br />
+
+                                <label for="compress_cache_with_brotli">
+                                    <input name="cache-enabler[compress_cache_with_brotli]" type="checkbox" id="compress_cache_with_brotli" value="1" <?php checked( '1', $settings['compress_cache_with_brotli'] ); ?> />
+                                    <?php esc_html_e( 'Pre-compression of cached pages. Needs to be disabled if the decoding fails in the web browser.', 'cache-enabler' ); ?> (Brotli)
                                 </label>
 
                                 <br />
