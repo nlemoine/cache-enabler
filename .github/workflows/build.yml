@@ -1,6 +1,9 @@
 name: Check Brolti version and build binaries
 
 on:
+  push:
+    branches:
+      - develop
   schedule:
     - cron:  '0 0 1 * *'
 
