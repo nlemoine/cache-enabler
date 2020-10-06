@@ -1,0 +1,121 @@
+name: Check Brolti version and build binaries
+
+on:
+  schedule:
+    - cron:  '0 0 1 * *'
+
+jobs:
+  check:
+    name: Get Brotli latest version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get latest Brotli latest tag
+        id: latest-brotli-bin-version
+        run: echo "::set-output name=version::$(git -c 'versionsort.suffix=-' ls-remote --exit-code --refs --sort='version:refname' --tags https://github.com/google/brotli.git '*.*.*' | tail -n 1 | cut -d/ -f3 | sed 's/v//g')"
+      - name: Set Brolti latest version
+        id: set_brotli_latest_version
+        uses: noobly314/share-data@v1
+        with:
+          share-id: brotli_latest_version
+          mode: set
+          key: version
+          value: ${{ steps.latest-brotli-bin-version.outputs.version }}
+
+  #
+  # Build Linux version
+  #
+  build_linux:
+    name: Build Linux Brotli binary
+    runs-on: ubuntu-latest
+    needs: check
+    container:
+      image: debian:stretch
+      volumes:
+        - /output
+    steps:
+      # Get Brotli latest version
+      - name: Set Brolti latest version
+        id: get_brotli_latest_version
+        uses: noobly314/share-data@v1
+        with:
+          share-id: brotli_latest_version
+          mode: get
+          key: version
+
+      # Set BROTLI_VERSION env variable
+      - run: echo "::set-env name=BROTLI_VERSION::${{ steps.get_brotli_latest_version.outputs.data }}"
+
+      # Install dependencies
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y wget unzip make gcc libc6-dev-i386 gcc-multilib
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Download Brotli sources
+        run: |
+          cd /tmp
+          wget https://github.com/google/brotli/archive/v$BROTLI_VERSION.zip
+          unzip v$BROTLI_VERSION.zip
+
+      # Compile x86 binary
+      - name: Compile x86 Brotli v${{ steps.get_brotli_latest_version.outputs.data }}
+        run: |
+          cd /tmp/brotli-$BROTLI_VERSION
+          LDFLAGS="-m32 -static" CFLAGS="-m32 -static" make -j $(nproc) brotli
+          strip bin/brotli
+          mkdir -p /output/binaries/linux/x86
+          cp bin/brotli /output/binaries/linux/x86/brotli
+          rm -rf bin
+
+      # Compile x64 binary
+      - name: Compile x64 Brotli v${{ steps.get_brotli_latest_version.outputs.data }}
+        run: |
+          cd /tmp/brotli-$BROTLI_VERSION
+          LDFLAGS=-static CFLAGS=-static make -j $(nproc) brotli
+          strip bin/brotli
+          mkdir -p /output/binaries/linux/x64
+          cp bin/brotli /output/binaries/linux/x64/brotli
+          rm -rf bin
+
+      # Upload binary
+      - uses: actions/upload-artifact@v2
+        with:
+          name: brotli_binaries
+          path: /output
+
+  # Commit new binary versions
+  commit:
+    name: Commit & push Brotli new version
+    runs-on: ubuntu-latest
+    needs: [build_linux]
+    steps:
+      # Get Brotli latest version
+      - name: Set Brolti latest version
+        id: get_brotli_latest_version
+        uses: noobly314/share-data@v1
+        with:
+          share-id: brotli_latest_version
+          mode: get
+          key: version
+
+      # Set BROTLI_VERSION env variable
+      - run: echo "::set-ouput name=version::${{ steps.get_brotli_latest_version.outputs.data }}"
+        id: latest-brotli-bin-version
+
+      - uses: actions/checkout@v2
+
+      # Download binaries
+      - uses: actions/download-artifact@v2
+        with:
+          name: brotli_binaries
+
+      # Commit & push binaries to repo
+      - uses: EndBug/add-and-commit@v5
+        with:
+          author_name: Nicolas Lemoine
+          author_email: nico.lemoine@gmail.com
+          branch: binaries
+          message: "🤖 Build Brotli binaries"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
