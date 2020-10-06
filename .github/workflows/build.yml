@@ -3,7 +3,7 @@ name: Check Brolti version and build binaries
 on:
   push:
     branches:
-      - develop
+      - bin
   schedule:
     - cron:  '0 0 1 * *'
 
@@ -118,7 +118,7 @@ jobs:
         with:
           author_name: Nicolas Lemoine
           author_email: nico.lemoine@gmail.com
-          branch: binaries
+          branch: bin
           message: "🤖 Build Brotli binaries"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
