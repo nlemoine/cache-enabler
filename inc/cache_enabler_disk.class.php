@@ -297,8 +297,7 @@ final class Cache_Enabler_Disk {
         }
 
         // get new cache file
-        $new_cache_file      = self::get_cache_file();
-        $new_cache_file_dir  = dirname( $new_cache_file );
+        $new_cache_file = self::get_cache_file();
         $new_cache_file_name = basename( $new_cache_file );
 
         // if setting enabled minify HTML
@@ -307,39 +306,63 @@ final class Cache_Enabler_Disk {
         }
 
         // append cache signature
-        $page_contents = $page_contents . self::get_cache_signature( $new_cache_file_name );
+        $page_contents_raw = $page_contents . self::get_cache_signature( $new_cache_file_name );
 
         // convert image URLs to WebP if applicable
         if ( strpos( $new_cache_file_name, 'webp' ) !== false ) {
-            $page_contents = self::converter( $page_contents );
+            $page_contents_raw = self::converter( $page_contents_raw );
         }
 
         // compress page contents with Gzip if applicable
         if ( strpos( $new_cache_file_name, 'gz' ) !== false ) {
-            $page_contents = gzencode( $page_contents, 9 );
-
-            // check if Gzip compression failed
-            if ( $page_contents === false ) {
-                return;
-            }
+            $page_contents = gzencode( $page_contents_raw, 9 );
         }
 
+        /**
+         * @param array $cache_files Array of files to create ['file_path' => 'content']
+         * @param string $page_contents_raw Page contents uncompressed
+         * @param string $cache_path Cache file path
+         */
+        $cache_files = apply_filters( 'cache_enabler_cache_files', [
+            $new_cache_file => $page_contents,
+        ], $page_contents_raw, dirname( $new_cache_file ) );
+
+        // check if contents are not falsy (Gzip compression failed)
+        $cache_files = array_filter( $cache_files );
+
+        foreach ( $cache_files as $cache_file => $contents ) {
+            self::create_file( $cache_file, $contents );
+        }
+    }
+
+
+    /**
+     * Create file
+     *
+     * @param string $cache_file
+     * @param string $page_contents
+     */
+
+    private static function create_file( $cache_file, $page_contents ) {
+
+        $cache_dir = dirname( $cache_file );
+
         // create directory if necessary
-        if ( ! self::mkdir_p( $new_cache_file_dir ) ) {
+        if ( ! self::mkdir_p( $cache_dir ) ) {
             return;
         }
 
         // create new cache file
-        file_put_contents( $new_cache_file, $page_contents, LOCK_EX );
+        file_put_contents( $cache_file, $page_contents, LOCK_EX );
 
         // clear file status cache
         clearstatcache();
 
         // set file permissions
-        $new_cache_file_stats = @stat( $new_cache_file_dir );
+        $new_cache_file_stats = @stat( $cache_dir );
         $new_cache_file_perms = $new_cache_file_stats['mode'] & 0007777;
         $new_cache_file_perms = $new_cache_file_perms & 0000666;
-        @chmod( $new_cache_file, $new_cache_file_perms );
+        @chmod( $cache_file, $new_cache_file_perms );
 
         // clear file status cache
         clearstatcache();
