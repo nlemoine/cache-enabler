@@ -108,7 +108,7 @@ final class Cache_Enabler_Disk {
         $page_contents = apply_filters_deprecated( 'cache_enabler_before_store', array( $page_contents ), '1.6.0', 'cache_enabler_page_contents_before_store' );
 
         // create cached page to be stored
-        self::create_cache_file( $page_contents );
+        self::create_cache_files( $page_contents );
     }
 
 
@@ -289,59 +289,70 @@ final class Cache_Enabler_Disk {
      * @param   string  $page_contents  contents of a page from the output buffer
      */
 
-    private static function create_cache_file( $page_contents ) {
+    private static function create_cache_files( $page_contents ) {
 
         // check cache file requirements
         if ( ! is_string( $page_contents ) || strlen( $page_contents ) === 0 ) {
             return;
         }
 
-        // get new cache file
-        $new_cache_file = self::get_cache_file();
-        $new_cache_file_name = basename( $new_cache_file );
-
-        // if setting enabled minify HTML
-        if ( Cache_Enabler_Engine::$settings['minify_html'] ) {
-            $page_contents = self::minify_html( $page_contents );
-        }
-
-        // append cache signature
-        $page_contents_raw = $page_contents . self::get_cache_signature( $new_cache_file_name );
-
-        // convert image URLs to WebP if applicable
-        if ( strpos( $new_cache_file_name, 'webp' ) !== false ) {
-            $page_contents_raw = self::converter( $page_contents_raw );
-        }
-
-        // compress page contents with Brotli if applicable
-        if ( strpos( $new_cache_file_name, 'br' ) !== false && function_exists( 'brotli_compress' ) ) {
-            try {
-                $page_contents = brotli_compress( $page_contents );
-            } catch(\Exception $exception) {
-                return;
-            }
-        }
-
-        // compress page contents with Gzip if applicable
-        if ( strpos( $new_cache_file_name, 'gz' ) !== false ) {
-            $page_contents = gzencode( $page_contents_raw, 9 );
-        }
-
         /**
-         * @param array $cache_files Array of files to create ['file_path' => 'content']
-         * @param string $page_contents_raw Page contents uncompressed
-         * @param string $cache_path Cache file path
+         * Cache compressions filter
+         *
+         * @param array $compression Array of compression (.br, .gzip)
          */
-        $cache_files = apply_filters( 'cache_enabler_cache_files', [
-            $new_cache_file => $page_contents,
-        ], $page_contents_raw, dirname( $new_cache_file ) );
-
-        // check if contents are not falsy (Gzip compression failed)
-        $cache_files = array_filter( $cache_files );
-
-        foreach ( $cache_files as $cache_file => $contents ) {
-            self::create_file( $cache_file, $contents );
+        $cache_compressions = apply_filters( 'cache_enabler_cache_compressions', []);
+        if (
+            !empty( $cache_compressions )
+            && is_array( $cache_compressions )
+        ) {
+            $cache_files = array_map( function( $compression ) {
+                return self::get_cache_file( $compression );
+            }, $cache_compressions );
+        } else {
+            $cache_files = [ self::get_cache_file() ];
         }
+
+        foreach ( $cache_files as $new_cache_file ) {
+
+            // get new cache file
+            $new_cache_file_name = basename( $new_cache_file );
+
+            // if setting enabled minify HTML
+            if ( Cache_Enabler_Engine::$settings['minify_html'] ) {
+                $page_contents = self::minify_html( $page_contents );
+            }
+
+            // append cache signature
+            $page_contents = $page_contents . self::get_cache_signature( $new_cache_file_name );
+
+            // convert image URLs to WebP if applicable
+            if ( strpos( $new_cache_file_name, 'webp' ) !== false ) {
+                $page_contents = self::converter( $page_contents );
+            }
+
+            // compress page contents with Brotli if applicable
+            if ( strpos( $new_cache_file_name, 'br' ) !== false && function_exists( 'brotli_compress' ) ) {
+                try {
+                    $page_contents = brotli_compress( $page_contents );
+                } catch(\Exception $exception) {
+                    continue;
+                }
+            }
+
+            // compress page contents with Gzip if applicable
+            if ( strpos( $new_cache_file_name, 'gz' ) !== false ) {
+                $page_contents = gzencode( $page_contents, 9 );
+
+                // check if Gzip compression failed
+                if ( $page_contents === false ) {
+                    continue;
+                }
+            }
+
+            self::write_cache_file( $new_cache_file, $page_contents );
+        }
+
     }
 
 
@@ -352,7 +363,7 @@ final class Cache_Enabler_Disk {
      * @param string $page_contents
      */
 
-    private static function create_file( $cache_file, $page_contents ) {
+    private static function write_cache_file( $cache_file, $page_contents ) {
 
         $cache_dir = dirname( $cache_file );
 
@@ -432,12 +443,12 @@ final class Cache_Enabler_Disk {
      * @return  string  $cache_file  file path to new or potentially cached page
      */
 
-    public static function get_cache_file() {
+    public static function get_cache_file( $compression = '' ) {
 
         $cache_file = sprintf(
             '%s/%s',
             self::get_cache_file_dir(),
-            self::get_cache_file_name()
+            self::get_cache_file_name( $compression )
         );
 
         return $cache_file;
@@ -486,12 +497,17 @@ final class Cache_Enabler_Disk {
      * @return  string  $cache_file_name  file name for new or potentially cached page
      */
 
-    private static function get_cache_file_name() {
+    private static function get_cache_file_name( $compression = '' ) {
 
         $cache_keys = self::get_cache_keys();
-        $cache_file_name = $cache_keys['scheme'] . 'index' . $cache_keys['device'] . $cache_keys['webp'] . '.html' . $cache_keys['compression'];
 
-        return $cache_file_name;
+        return sprintf(
+            '%sindex%s%s.html%s',
+            $cache_keys['scheme'],
+            $cache_keys['device'],
+            $cache_keys['webp'],
+            $compression ? $compression : $cache_keys['compression']
+        );
     }
 
 
