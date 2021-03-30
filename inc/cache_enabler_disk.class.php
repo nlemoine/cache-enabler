@@ -299,7 +299,7 @@ final class Cache_Enabler_Disk {
         /**
          * Cache compressions filter
          *
-         * @param array $compression Array of compression (.br, .gzip)
+         * @param array $compression Array of compression (.html, .br, .gzip)
          */
         $cache_compressions = apply_filters( 'cache_enabler_cache_compressions', []);
         if (
@@ -313,28 +313,28 @@ final class Cache_Enabler_Disk {
             $cache_files = [ self::get_cache_file() ];
         }
 
+        // if setting enabled minify HTML
+        if ( Cache_Enabler_Engine::$settings['minify_html'] ) {
+            $page_contents = self::minify_html( $page_contents );
+        }
+
         foreach ( $cache_files as $new_cache_file ) {
 
             // get new cache file
             $new_cache_file_name = basename( $new_cache_file );
 
-            // if setting enabled minify HTML
-            if ( Cache_Enabler_Engine::$settings['minify_html'] ) {
-                $page_contents = self::minify_html( $page_contents );
-            }
-
             // append cache signature
-            $page_contents = $page_contents . self::get_cache_signature( $new_cache_file_name );
+            $new_page_contents = $page_contents . self::get_cache_signature( $new_cache_file_name );
 
             // convert image URLs to WebP if applicable
             if ( strpos( $new_cache_file_name, 'webp' ) !== false ) {
-                $page_contents = self::converter( $page_contents );
+                $new_page_contents = self::converter( $new_page_contents );
             }
 
             // compress page contents with Brotli if applicable
             if ( strpos( $new_cache_file_name, 'br' ) !== false && function_exists( 'brotli_compress' ) ) {
                 try {
-                    $page_contents = brotli_compress( $page_contents );
+                    $new_page_contents = brotli_compress( $new_page_contents );
                 } catch(\Exception $exception) {
                     continue;
                 }
@@ -342,15 +342,15 @@ final class Cache_Enabler_Disk {
 
             // compress page contents with Gzip if applicable
             if ( strpos( $new_cache_file_name, 'gz' ) !== false ) {
-                $page_contents = gzencode( $page_contents, 9 );
+                $new_page_contents = gzencode( $new_page_contents, 9 );
 
                 // check if Gzip compression failed
-                if ( $page_contents === false ) {
+                if ( $new_page_contents === false ) {
                     continue;
                 }
             }
 
-            self::write_cache_file( $new_cache_file, $page_contents );
+            self::write_cache_file( $new_cache_file, $new_page_contents );
         }
 
     }
@@ -506,7 +506,7 @@ final class Cache_Enabler_Disk {
             $cache_keys['scheme'],
             $cache_keys['device'],
             $cache_keys['webp'],
-            $compression ? $compression : $cache_keys['compression']
+            $compression ? ($compression === '.html' ? '' : $compression) : $cache_keys['compression']
         );
     }
 
